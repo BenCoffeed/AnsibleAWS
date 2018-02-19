@@ -1,0 +1,7 @@
+---
+- name: Terminate Postgresql RDS instance and take final snapshot
+  rds:
+    instance_name: "{{ name }}"
+    command: delete
+    snapshot: "{{ name }}-final"     #  once ansible 2.4 is released, we can easily time-stamp: "{{ name }}-final-{{ '%Y-%m-%dT%H%M%S' | strftime(ansible_date_time.epoch) }}"
+    region: "{{ region }}"

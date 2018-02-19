@@ -1,0 +1,36 @@
+---
+- name: Add group to ansible inventory
+  lineinfile:
+    dest: .ansible_hosts
+    regexp: '^\[{{ resource_group }}\]'
+    line: "[{{ resource_group }}]\n"
+    insertbefore: '# Group Configurations'
+
+- name: Add host(s) and key information to ansible inventory under correct group
+  lineinfile:
+    dest: .ansible_hosts
+    regexp: "^{{ resource_ip }}"
+    insertafter: '^\[{{ resource_group }}\]'
+    line: "{{ resource_ip }} ansible_host={{ resource_name }}  ansible_ssh_private_key_file={{ resource_key_file }} {{ resource_extra_vars | default([]) | join(' ') }} host_type={{ host_type }}"
+
+- name: Add entry to /etc/hosts
+  lineinfile:
+    dest: /etc/hosts
+    regexp: "{{ resource_name }}"
+    line: "{{ resource_ip }}     {{ resource_name }}"
+  become: true
+
+- name: Verify that no entries exist in ~/.ssh/known_hosts
+  lineinfile:
+    dest: ~/.ssh/known_hosts
+    regexp: "^{{ resource_name }}"
+    line: ""
+
+- name: Verify that no entries exist in ~/.ssh/known_hosts
+  lineinfile:
+    dest: ~/.ssh/known_hosts
+    regexp: "^{{ resource_ip }}"
+    line: ""
+
+- name: Reload inventory to pull in changes.
+  meta: refresh_inventory

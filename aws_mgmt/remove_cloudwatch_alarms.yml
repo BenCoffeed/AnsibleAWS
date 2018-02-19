@@ -1,0 +1,27 @@
+---
+# Example Usage
+# - name: Configure CloudWatch Alarms
+#   include: aws_mgmt/remove_cloudwatch_alarms.yml name={{ item.name }} server_env={{ item.server_env }}
+#   with_items: "{{ hosts }}"
+
+- name: Get ec2 facts
+  ec2_facts:
+  delegate_to: "{{ name }}"
+
+- name: Remove RAM Utilization Alarms
+  ec2_metric_alarm:
+    name: "{{ name }}: RAM utilization ({{ server_env }})"
+    state: absent
+    region: "{{ ansible_ec2_placement_region }}"
+
+- name: Remove Disk Space Utilization Alarms
+  ec2_metric_alarm:
+    name: "{{ name }}: Disk space utilization ({{ server_env }})"
+    state: absent
+    region: "{{ ansible_ec2_placement_region }}"
+
+- name: Remove CPU Utilization Alarms
+  ec2_metric_alarm:
+    name: "{{ name }}: CPU utilization ({{ server_env }})"
+    state: absent
+    region: "{{ ansible_ec2_placement_region }}"

@@ -1,0 +1,85 @@
+---
+# Example Usage
+# - name: Configure CloudWatch Alarms
+#   include: aws_mgmt/add_cloudwatch_alarms.yml name={{ item.name }} server_env={{ item.server_env }}
+#   with_items: "{{ hosts }}"
+
+- name: Get ec2 facts
+  ec2_facts:
+  delegate_to: "{{ private_ip }}"
+
+- name: Include sns alert definitions
+  include_vars: aws_config/sns/alerts.yml
+
+- name: Configure RAM Utilization Alarms
+  ec2_metric_alarm:
+    name: "{{ name }}: RAM utilization ({{ server_env }})"
+    state: present
+    namespace: "System/Linux"
+    metric: MemoryUtilization
+    region: "{{ ansible_ec2_placement_region }}"
+    statistic: Minimum
+    comparison: ">="
+    threshold: 99
+    period: 300
+    evaluation_periods: 4
+    description: "Alarm when minimum Memory utilization is greater than or equal to 99% for more than 20 minutes."
+    dimensions: {'InstanceId':'{{ ansible_ec2_instance_id }}'}
+    alarm_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+    insufficient_data_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+    # ok_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+
+- name: Configure Disk Space Utilization Alarms
+  ec2_metric_alarm:
+    name: "{{ name }}: Disk space utilization ({{ server_env }})"
+    state: present
+    metric: DiskSpaceUtilization
+    namespace: "System/Linux"
+    region: "{{ ansible_ec2_placement_region }}"
+    statistic: Average
+    comparison: ">"
+    threshold: 85
+    period: 300
+    evaluation_periods: 6
+    unit: "Percent"
+    description: "Alarm when average disk space utilization is above 75% for longer than 15 minutes."
+    dimensions: {'MountPath':'/','InstanceId':'{{ ansible_ec2_instance_id }}','Filesystem':'/dev/xvda1'}
+    alarm_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+    insufficient_data_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+    # ok_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+
+- name: Configure CPU Utilization Alarms
+  ec2_metric_alarm:
+    name: "{{ name }}: CPU utilization ({{ server_env }})"
+    state: present
+    namespace: "AWS/EC2"
+    metric: CPUUtilization
+    region: "{{ ansible_ec2_placement_region }}"
+    statistic: Average
+    comparison: ">"
+    threshold: 95
+    period: 300
+    evaluation_periods: 3
+    description: "Alarm when average CPU utilization is above 95% for longer than 15 minutes."
+    dimensions: {'InstanceId':'{{ ansible_ec2_instance_id }}'}
+    alarm_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+    insufficient_data_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+    # ok_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+
+- name: Configure Swap Utilization Alarms
+  ec2_metric_alarm:
+    name: "{{ name }}: Swap utilization ({{ server_env }})"
+    state: present
+    namespace: "System/Linux"
+    metric: SwapUtilization
+    region: "{{ ansible_ec2_placement_region }}"
+    statistic: Maximum
+    comparison: ">="
+    threshold: 12
+    period: 300
+    evaluation_periods: 4
+    description: "Alarm when minimum Swap utilization is greater than or equal to 12% for more than 20 minutes."
+    dimensions: {'InstanceId':'{{ ansible_ec2_instance_id }}'}
+    alarm_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+    insufficient_data_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]
+    # ok_actions: ["{{ sns_alert_arns.slack_lambda}}","{{sns_alert_arns.devops_email}}"]

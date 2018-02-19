@@ -1,0 +1,202 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  vars:
+    hashi_vault_token: "{{ lookup('file','.hashi_vault_token') }}"
+    hashi_vault_addr: "{{ lookup('env','VAULT_ADDR')}}"
+
+  tasks:
+  - include_vars: "{{ inventory }}"
+
+  - name: Provision EC2 hosts
+    ec2:
+      region: "{{ item.region }}"
+      private_ip: "{{ item.private_ip }}"
+      instance_type: "{{ item.instance_type }}"
+      keypair: "{{ item.keypair }}"
+      groups: "{{ item.groups }}"
+      image: "{{ item.image }}"
+      assign_public_ip: "{{ item.assign_public_ip }}"
+      instance_tags: "{{ item.instance_tags | to_json }}"
+      tenancy: "{{ item.tenancy }}"
+      monitoring: "{{ item.monitoring }}"
+      termination_protection: "{{ item.termination_protection }}"
+      vpc_subnet_id: "{{ item.vpc_subnet_id }}"
+      wait: "{{ item.wait }}"
+      volumes: "{{ item.volumes }}"
+      ebs_optimized: "{{ item.ebs_optimized }}"
+      instance_profile_name: "{{ item.instance_profile_name }}"
+    with_items: "{{ ec2_hosts }}"
+    aws_access_key: "{{ lookup('hashi_vault', 'secret=aws/creds/production_provision_resources:access_key') }}"
+    aws_secret_key: "{{ lookup('hashi_vault', 'secret=aws/creds/production_provision_resources:secret_key') }}"
+    when:
+      - ec2_hosts is defined
+      - not ec2_repair_mode | default(false)
+
+  - name: Read RDS pass from Vault
+    uri:
+      url: "{{ hashi_vault_addr }}/v1/{{ rds_host.vault_path }}"
+      method: GET
+      headers:
+        X-Vault-Token: "{{ hashi_vault_token }}"
+      return_content: yes
+      status_code: 200
+    register: rds_db_pass
+    delegate_to: localhost
+    when:
+      - rds_host is defined
+      - rds_host.vault_path is defined
+
+  - name: Create Postgresql RDS instances using AWS CLI using Hashi vault creds
+    command: "aws --region {{ rds_host.region }} rds create-db-instance
+              --db-instance-identifier {{ rds_host.instance_name }}
+              --db-instance-class {{ rds_host.instance_type }}
+              --engine {{ rds_host.db_engine }}
+              --engine-version {{ rds_host.engine_version }}
+              --port {{ rds_host.port }}
+              --master-username {{ rds_host.username }}
+              --master-user-password '{{ rds_db_pass.json.data.value }}'
+              --backup-retention-period {{ rds_host.backup_retention }}
+              --preferred-backup-window {{ rds_host.backup_window }}
+              {{ rds_host.encryption_flag | when rds_host.encryption_flag exists }}
+              --kms-key-id {{ rds_host.kms_key_id }}
+              --license-model {{rds_host.license_model}}
+              --preferred-maintenance-window {{ rds_host.maint_window }}
+              {{ rds_host.multi_zone_flag | when rds_host.multi-zone_flag exists }}
+              {{ rds_host.public_access_flag | when rds_host.public_access_flag exists }}
+              --allocated-storage {{ rds_host.size }}
+              --storage-type {{ rds_host.storage_type }}
+              --db-subnet-group-name {{ rds_host.subnet }}
+              {{ rds_host.upgrade_flag | when rds_host.upgrade_flag exists }}
+              --vpc-security-group-ids {{ rds_host.vpc_security_groups }}
+              --tags {{ rds_host.tags | to_json }}"
+    register: rds_result
+    failed_when:
+      - rds_result.rc != 0
+      - not (rds_result.stderr | search("DBInstanceAlreadyExists"))
+    changed_when: rds_result.rc == 0
+    when:
+      - rds_host is defined
+      - rds_host.vault_path is defined
+
+  - name: Create Postgresql RDS instances using AWS CLI
+    command: "aws --region {{ item.region }} rds create-db-instance
+             --db-instance-identifier {{ item.instance_name }}
+             --db-instance-class {{ item.instance_type }}
+             --engine {{ item.db_engine }}
+             --engine-version {{ item.engine_version }}
+             --port {{ item.port }}
+             --master-username {{ item.username }}
+             --master-user-password '{{ item.password }}'
+             --backup-retention-period {{ item.backup_retention }}
+             --preferred-backup-window {{ item.backup_window }}
+             {{ item.encryption_flag | when item.encryption_flag exists }}
+             --kms-key-id {{ item.kms_key_id }}
+             --license-model {{item.license_model}}
+             --preferred-maintenance-window {{ item.maint_window }}
+             {{ item.multi_zone_flag | when item.multi_zone_flag exists}}
+             {{ item.public_access_flag | when item.public_access_flag exists }}
+             --allocated-storage {{ item.size }}
+             --storage-type {{ item.storage_type }}
+             --db-subnet-group-name {{ item.subnet }}
+             {{ item.upgrade_flag | when item.upgrade_flag exists }}
+             --vpc-security-group-ids {{ item.vpc_security_groups }}
+             --tags {{ item.tags | to_json }}"
+    register: rds_result
+    failed_when:
+     - rds_result.rc != 0
+     - not (rds_result.stderr | search("DBInstanceAlreadyExists"))
+    changed_when: rds_result.rc == 0
+    with_items: "{{ rds_hosts }}"
+    when:
+    - rds_hosts is defined
+    - rds_host.vault_path is not defined
+
+
+  # See https://github.com/ansible/ansible-modules-core/issues/633
+  # and https://github.com/ansible/ansible-modules-core/issues/2368
+  # Awaiting ssd and encryption support for RDS instances on Ansible RDS module
+  # - name: Provision RDS hosts
+  #   rds:
+  #     instance_name: "{{ rds_host.instance_name }}"
+  #     instance_type: "{{ item.instance_type }}"
+  #     db_engine: "{{ item.db_engine }}
+  #     engine_version: "{{ item.engine_version }}"
+  #     port: "{{ item.port }}"
+  #     username: "{{ item.username }}"
+  #     password: "{{ item.password }}"
+  #     backup_retention: "{{ item.backup_retention }}"
+  #     backup_window: "{{ item.backup_window }}"
+  #     license_model: "{{ item.license_model }}"
+  #     maint_window: "{{ item.maint_window }}"
+  #     multi_zone: "{{ item.multi_zone }}"
+  #     publicly_accessible: "{{ item.publicly_accessible }}"
+  #     region: "{{ item.region }}"
+  #     storage_type: "{{ item.storage_type }}"
+  #     size: "{{ item.size }}"
+  #     subnet: "{{ item.subnet }}"
+  #     tags: "{{ item.tags }}"
+  #     upgrade: "{{ item.upgrade }}"
+  #     vpc_security_groups: "{{ item.vpc_security_groups }}"
+  #     wait: "{{ item.wait }}"
+  #     command: create
+  #   with_items: "{{ rds_hosts }}"
+  #   when: rds_hosts is defined
+
+  post_tasks:
+    - name: Update local inventory files
+      include: aws_mgmt/update_local_files.yml
+        resource_group={{ item.ansible_group }}
+        inventory_file={{ inventory_file | default('.ansible_hosts') }}
+        resource_ip={{ item.private_ip }}
+        resource_name={{ item.name }}
+        resource_ssh_user={{ item.ansible_ssh_user }}
+        resource_key_file={{ item.ansible_ssh_private_key_file }}
+        resource_become={{ item.ansible_become }}
+        resource_extra_vars={{ item.role_vars | default([]) }}
+        resource_group_vars={{ item.group_vars | when item.group_vars exists }}
+      with_items: "{{ ec2_hosts }}"
+      when:
+        - ec2_hosts is defined
+        - item.host_type == 'ec2'
+
+    - name: Wait for host to come up and respond to port 22.
+      wait_for:
+        host: "{{ item.private_ip }}"
+        port: 22
+        search_regex: OpenSSH
+        delay: 60
+        timeout: 300
+        state: started
+      with_items: "{{ ec2_hosts }}"
+      when:
+        - ec2_hosts is defined
+        - item.host_type == 'ec2'
+        - not ec2_repair_mode | default(false)
+
+    - name: Repair apt if in ec2_repair_mode
+      delegate_to: "{{ item.private_ip }}"
+      raw: sudo apt -y update --fix-missing
+      with_items: "{{ ec2_hosts }}"
+      when:
+        - ec2_hosts is defined
+        - item.host_type == 'ec2'
+        - ec2_repair_mode | default(false)
+
+    - name: Run post-provisioning tasks
+      delegate_to: "{{ item.private_ip }}"
+      include: aws_mgmt/post_provision_setup.yml
+        resource_ip={{ item.private_ip }}
+        resource_name={{ item.name }}
+      with_items: "{{ ec2_hosts }}"
+      when:
+        - ec2_hosts is defined
+        - item.host_type == 'ec2'
+
+    - name: Configure CloudWatch Alarms
+      include: aws_mgmt/add_cloudwatch_alarms.yml name={{ item.name }} server_env={{ item.instance_tags.server_env }} private_ip={{ item.private_ip }}
+      when:
+        - ec2_hosts is defined
+        - item.enable_alarms is defined
+        - item.enable_alarms
+      with_items: "{{ ec2_hosts }}"

@@ -1,0 +1,31 @@
+ec2_hosts:
+  - name: awx01
+    region: us-west-2
+    private_ip: 172.17.2.48
+    instance_type: t2.medium
+    keypair: production
+    groups: awx-servers
+    image: ami-79873901
+    assign_public_ip: yes
+    instance_tags:
+      Name: awx01
+      server_env: utilities
+    tenancy: default
+    monitoring: yes
+    termination_protection: yes
+    vpc_subnet_id: subnet-ef8788fd
+    wait: yes
+    volumes:
+      - device_name: /dev/sda1
+        volume_size: 40
+        delete_on_termination: true
+    ebs_optimized: no
+    instance_profile_name: AWX-Server-Instance-Profile
+    ansible_group: awx-servers
+    ansible_ssh_user: ubuntu
+    ansible_ssh_private_key_file: .private_keys/production.pem
+    ansible_become: true
+    host_type: ec2
+    enable_alarms: true
+    role_vars:
+      - awx_db_host: awxdb01

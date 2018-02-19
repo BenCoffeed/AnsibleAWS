@@ -1,0 +1,19 @@
+---
+- name: Install Python 2 on remote host
+  raw: test -e /usr/bin/python || (sudo apt -y update && sudo apt install -y python-minimal)
+
+- name: Set remote hostname.
+  hostname:
+    name: "{{ resource_name }}"
+
+- name: Update localhost entry in /etc/hosts on remote hosts
+  lineinfile:
+    dest: /etc/hosts
+    regexp: ^127.0.0.1
+    line: 127.0.0.1 localhost
+
+- name: Update hostname entry in /etc/hosts on remote hosts
+  lineinfile:
+    dest: /etc/hosts
+    regexp: ^127.0.1.1
+    line: "{{ resource_ip }} {{ resource_name }}"

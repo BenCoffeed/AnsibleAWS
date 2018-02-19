@@ -1,0 +1,14 @@
+.vagrant/
+.galaxy_roles/
+ubuntu-*-console.log
+hosts.yaml
+hosts.yml
+*.retry
+.vaultpass
+.hashi_vault_token
+.private_keys/
+user_mgmt/user_packages/
+*_prod.vault
+.backups/*
+!.backups/about.md
+.logs/*

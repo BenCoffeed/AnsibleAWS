@@ -1,0 +1,22 @@
+---
+# Example Usage
+# - name: Terminate ec2 instance
+#   include: aws_mgmt/terminate_ec2_instaces.yml name={{ item.name }}
+#   with_items: "{{ hosts }}"
+
+- name: Get ec2 facts
+  ec2_facts:
+  delegate_to: "{{ name }}"
+
+- name: Disable termination protection for instance
+  ec2:
+    instance_id: "{{ ansible_ec2_instance_id }}"
+    region: "{{ ansible_ec2_placement_region }}"
+    state: restarted
+    termination_protection: no
+
+- name: Terminate Instance
+  ec2:
+    state: absent
+    instance_id: "{{ ansible_ec2_instance_id }}"
+    region: "{{ ansible_ec2_placement_region }}"
