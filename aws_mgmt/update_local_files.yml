@@ -6,6 +6,22 @@
     line: "[{{ resource_group }}]\n"
     insertbefore: '# Group Configurations'
 
+- name: Add group vars header to ansible inventory
+  lineinfile:
+    dest: .ansible_hosts
+    regexp: '^\[{{ resource_group }}:vars'
+    line: "[{{ resource_group }}:vars]\n"
+    insertafter: EOF
+
+- name: Add group vars to ansible inventory
+  lineinfile:
+    dest: .ansible_hosts
+    regexp: '^{{ item }}'
+    line: '{{ item }}'
+    insertafter: '[{{ resource_group }}:vars]'
+  with_items: resource_group_vars
+  when: resource_group_vars exists
+
 - name: Add host(s) and key information to ansible inventory under correct group
   lineinfile:
     dest: .ansible_hosts
